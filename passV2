@@ -9,7 +9,7 @@ async function solvePasswordGame() {
         return;
     }
 
-    // "Please choose a password" yazısını değiştir
+    // "Please choose a password" yazısını değiştirir
     const passwordLabel = document.querySelector('div.password-label[data-v-46f3d879]');
     if (passwordLabel) {
         const gifUrl = "https://tenor.com/tr/view/lemonhota-elraenn-rraenee-limon-tayfa-twitch-t%C3%BCrkiye-gif-13401529742757133867.gif";
@@ -136,29 +136,33 @@ async function solvePasswordGame() {
     let periodicSymbolEntered = false;
     let moonEmojiEntered = false;
     let countryNameEntered = false;
-    let leapYearEntered = false;
     let saporeEntered = false;
     let chessMoveEntered = false;
     let currentCaptchaText = "";
 
-    // DÜZELTME: Tüm aylar eklendi
     const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
     const sponsors = ["Pepsi", "Starbucks", "Shell"];
 
     const intervalId = setInterval(async () => {
-        // **ÖNCELİKLİ KONTROL:** Eğer "Illegal move" hatası varsa
+        // Döngüyü durdurmak için kontrol
+        const successDiv = document.querySelector('div.password-strength div.rule');
+        if (successDiv && successDiv.textContent.includes("all is well")) {
+            clearInterval(intervalId);
+            console.log("Tüm kurallar başarıyla tamamlandı. Otomatik çözme durduruldu. Artık şifreyi manuel olarak düzenleyebilirsiniz.");
+            return;
+        }
+        
+        // ÖNCELİKLİ KONTROL: "Illegal move" hatası varsa
         const illegalMoveError = document.querySelector('div.rule.chess.rule-error');
         if (illegalMoveError && illegalMoveError.textContent.includes("Illegal move")) {
             console.log("Illegal move hatası tespit edildi. Sorunlu kısım temizleniyor.");
 
             let tempPassword = password;
 
-            // Önceki CAPTCHA'yı ve rakamlarını temizle
             if (currentCaptchaText) {
                 tempPassword = tempPassword.replace(currentCaptchaText, '');
             }
 
-            // Rakam toplamı kuralı için eklenen son rakamları temizle
             tempPassword = tempPassword.replace(/\d+$/, '');
 
             password = tempPassword;
@@ -168,19 +172,16 @@ async function solvePasswordGame() {
             return;
         }
 
-        // Kural 15: Artık Yıl (En başa alındı)
-        if (!leapYearEntered) {
-            const leapYear = 2024;
-            const leapYearString = leapYear.toString();
-            if (!password.includes(leapYearString)) {
-                password = leapYearString + password;
-                leapYearEntered = true;
-                updatePassword();
-                return;
-            }
+        // Kural 15: Artık Yıl
+        const leapYear = 2024;
+        const leapYearString = leapYear.toString();
+        if (!password.includes(leapYearString)) {
+            password = leapYearString + password;
+            updatePassword();
+            return;
         }
 
-        // Kural 1: Gerçek ayı ekle
+        // Kural 1: Gerçek ayı ekler
         const hasMonth = months.some(m => password.includes(m));
         if (!hasMonth) {
             password += months[new Date().getMonth()];
@@ -188,7 +189,7 @@ async function solvePasswordGame() {
             return;
         }
 
-        // Kural 2: Sponsor ekle
+        // Kural 2: Sponsor ekler
         const hasSponsor = sponsors.some(s => password.includes(s));
         if (!hasSponsor) {
             password += sponsors[Math.floor(Math.random() * sponsors.length)];
@@ -210,7 +211,7 @@ async function solvePasswordGame() {
             return;
         }
 
-        // Kural 4: Wordle cevabı (prompt ile kullanıcıdan istenir)
+        // Kural 4: Wordle cevabı
         if (!wordleAnswerEntered) {
             const wordleAnswer = prompt("Lütfen günün Wordle cevabını girin:");
             if (wordleAnswer && !password.includes(wordleAnswer.toLowerCase())) {
@@ -241,15 +242,14 @@ async function solvePasswordGame() {
                 return;
             }
         }
-        
 
         // Kural 7: Ülke Adı (iframe'den alınır)
         if (!countryNameEntered) {
             const country = await getCountryFromIframe();
             if (country) {
                 const lowercaseCountry = country.toLowerCase();
-                if (!password.includes(lowercaseCountry)) {
-                    password += lowercaseCountry;
+                if (!password.includes(lowercaseCountry + '.')) {
+                    password += lowercaseCountry + '.';
                     countryNameEntered = true;
                     updatePassword();
                     return;
@@ -322,18 +322,22 @@ async function solvePasswordGame() {
             }
         }
 
-        // Tüm kurallar tamamlandığında döngüyü durdur
-        const allRulesCompleted =
-            hasMonth && hasSponsor && (calculateRomanSum(password) === 35) &&
-            wordleAnswerEntered && periodicSymbolEntered && moonEmojiEntered &&
-            saporeEntered && countryNameEntered && leapYearEntered &&
-            (calculateDigitSum(password) === 25) &&
-            (chessMoveEntered || !document.querySelector('div.rule.chess'));
-
-        if (allRulesCompleted) {
-            clearInterval(intervalId);
-            console.log("Tüm kurallar başarıyla tamamlandı. Otomatik çözme durduruldu. Artık şifreyi manuel olarak düzenleyebilirsiniz.");
+        // Kural 24: Sapo & Re
+        if (!saporeEntered) {
+            const sapoRule = document.querySelector('div.rule[data-v-46f3d879][data-v-7f41a0b5]');
+            if (sapoRule && sapoRule.textContent.includes("sapo")) {
+                const parts = password.split("re");
+                if (parts.length > 1) {
+                    password = parts[0] + "sapo" + parts[1];
+                } else {
+                    password += "sapo";
+                }
+                saporeEntered = true;
+                updatePassword();
+                return;
+            }
         }
+
     }, 100);
 }
 
