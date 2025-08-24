@@ -149,22 +149,34 @@ async function solvePasswordGame() {
         const illegalMoveError = document.querySelector('div.rule.chess.rule-error');
         if (illegalMoveError && illegalMoveError.textContent.includes("Illegal move")) {
             console.log("Illegal move hatası tespit edildi. Sorunlu kısım temizleniyor.");
-            
-            // Eğer varsa önceki CAPTCHA ve rakamlarını şifreden çıkar
-            if (currentCaptchaText) {
-                // Sadece captcha metnini şifreden sil
-                const newPass = password.replace(currentCaptchaText, '');
-                
-                // Rakam toplamı kuralı için eklenen rakamları da silmek için
-                let finalPass = newPass.replace(/\d+$/, '');
-                password = finalPass;
 
-                updatePassword();
+            let tempPassword = password;
+
+            // Önceki CAPTCHA'yı ve rakamlarını temizle
+            if (currentCaptchaText) {
+                tempPassword = tempPassword.replace(currentCaptchaText, '');
             }
 
-            // CAPTCHA'yı yenile ve döngünün bu turunu durdur
+            // Rakam toplamı kuralı için eklenen son rakamları temizle
+            tempPassword = tempPassword.replace(/\d+$/, '');
+
+            password = tempPassword;
+            updatePassword();
+
             refreshCaptcha();
             return;
+        }
+
+        // Kural 15: Artık Yıl (En başa alındı)
+        if (!leapYearEntered) {
+            const leapYear = 2024;
+            const leapYearString = leapYear.toString();
+            if (!password.includes(leapYearString)) {
+                password = leapYearString + password;
+                leapYearEntered = true;
+                updatePassword();
+                return;
+            }
         }
 
         // Kural 1: Gerçek ayı ekle
@@ -228,16 +240,7 @@ async function solvePasswordGame() {
                 return;
             }
         }
-
-        // Kural 18: "sapore" kelimesi
-        if (!saporeEntered) {
-            if (!password.includes("sapore")) {
-                password += "sapore";
-                saporeEntered = true;
-                updatePassword();
-                return;
-            }
-        }
+        
 
         // Kural 7: Ülke Adı (iframe'den alınır)
         if (!countryNameEntered) {
@@ -253,27 +256,12 @@ async function solvePasswordGame() {
             }
         }
 
-        // Kural 15: Artık Yıl
-        if (!leapYearEntered) {
-            const currentYear = new Date().getFullYear();
-            let leapYear = currentYear;
-            while (!((leapYear % 4 === 0 && leapYear % 100 !== 0) || (leapYear % 400 === 0))) {
-                leapYear++;
-            }
-            if (!password.includes(leapYear.toString())) {
-                password += leapYear;
-                leapYearEntered = true;
-                updatePassword();
-                return;
-            }
-        }
-
         // Kural 8: Captcha
         const captchaImg = document.querySelector('img[src*="/password-game/captchas/"]');
         if (captchaImg) {
             const src = captchaImg.src;
             const captchaText = src.substring(src.lastIndexOf('/') + 1, src.lastIndexOf('.'));
-            currentCaptchaText = captchaText; // Yeni captcha metnini kaydet
+            currentCaptchaText = captchaText;
             if (!password.includes(captchaText)) {
                 const targetSum = 25;
                 let currentSum = calculateDigitSum(password);
