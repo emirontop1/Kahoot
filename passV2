@@ -12,7 +12,59 @@ async function solvePasswordGame() {
     // "Please choose a password" yazısını değiştir
     const passwordLabel = document.querySelector('div.password-label[data-v-46f3d879]');
     if (passwordLabel) {
-        passwordLabel.textContent = "Modded by Emocii";
+        const gifUrl = "https://tenor.com/tr/view/lemonhota-elraenn-rraenee-limon-tayfa-twitch-t%C3%BCrkiye-gif-13401529742757133867.gif";
+
+        // Yeni HTML yapısını oluştur: "Modded by Emocii" ve "Kudurma aşkım"
+        const newHtml = `
+            <div class="modded-container">
+                <img src="${gifUrl}" alt="sol-gif" class="modded-gif">
+                <span class="modded-text">Modded by Emocii</span>
+                <img src="${gifUrl}" alt="sağ-gif" class="modded-gif">
+            </div>
+            <div class="subtitle">Kudurma Hurinaz</div>
+        `;
+        
+        passwordLabel.innerHTML = newHtml;
+
+        // CSS'i dinamik olarak ekle
+        if (!document.getElementById("modded-styles")) {
+            const style = document.createElement('style');
+            style.id = "modded-styles";
+            style.innerHTML = `
+                .password-label {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .modded-container {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .modded-gif {
+                    width: 50px;
+                    height: auto;
+                    margin: 0 10px;
+                }
+                .modded-text {
+                    font-size: 24px;
+                    font-weight: bold;
+                    /* Fenerbahçe temalı sarı-lacivert renkler */
+                    background-image: linear-gradient(to right, #FFCC00, #004D99);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    white-space: nowrap;
+                }
+                .subtitle {
+                    font-size: 14px;
+                    color: #555;
+                    margin-top: 5px;
+                    font-style: italic;
+                }
+            `;
+            document.head.appendChild(style);
+        }
     }
 
     function updatePassword() {
