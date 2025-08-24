@@ -1,0 +1,78 @@
+
+// Bu fonksiyon, mobil dokunmatik olaylarını taklit eder.
+function simulateTouch(element, type, point) {
+    const touch = new Touch({
+        identifier: Date.now(),
+        target: element,
+        clientX: point.x,
+        clientY: point.y,
+        pageX: point.x,
+        pageY: point.y,
+        screenX: point.x,
+        screenY: point.y,
+    });
+
+    const touchEvent = new TouchEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        touches: [touch],
+        targetTouches: [touch],
+        changedTouches: [touch],
+    });
+
+    element.dispatchEvent(touchEvent);
+}
+
+// Bir elementin merkez koordinatını bulur.
+function getCenter(element) {
+    const rect = element.getBoundingClientRect();
+    return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+    };
+}
+
+// Otomatik birleştirme ve butona basma işlemini başlatan ana döngü.
+setInterval(() => {
+    try {
+        // Otomatik butona basma işlemi (yeni keşfedilen elementler)
+        const buttons = document.querySelectorAll('.item');
+        if (buttons.length > 0) {
+            buttons.forEach(button => {
+                // "First Discovery" butonu hariç, tüm butonlara tıklanıyor.
+                if (button.textContent.trim() !== "First Discovery") {
+                    console.log(`"${button.textContent.trim()}" butonuna tıklanıyor.`);
+                    button.click();
+                }
+            });
+        }
+        
+        // Otomatik birleştirme işlemi
+        const instances = document.querySelectorAll('.instance');
+        if (instances.length >= 2) {
+            // Rastgele iki farklı öğe seçer.
+            const randomIndex1 = Math.floor(Math.random() * instances.length);
+            let randomIndex2 = Math.floor(Math.random() * instances.length);
+            while (randomIndex1 === randomIndex2) {
+                randomIndex2 = Math.floor(Math.random() * instances.length);
+            }
+
+            const item1 = instances[randomIndex1];
+            const item2 = instances[randomIndex2];
+
+            const item1Center = getCenter(item1);
+            const item2Center = getCenter(item2);
+
+            console.log(`"${item1.textContent.trim()}" ve "${item2.textContent.trim()}" öğeleri birleştiriliyor...`);
+
+            // Sürükleme işlemini taklit eder.
+            simulateTouch(item1, 'touchstart', item1Center);
+            simulateTouch(item1, 'touchmove', item2Center);
+            simulateTouch(item1, 'touchend', item2Center);
+        }
+
+    } catch (error) {
+        console.error("Otomatik işlem sırasında bir hata oluştu:", error);
+    }
+}, 500); // Her 500 milisaniyede bir (yarım saniye) çalışır.
