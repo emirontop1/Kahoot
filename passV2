@@ -1,3 +1,5 @@
+// solvePasswordGame.js
+
 async function solvePasswordGame() {
     let password = "";
 
@@ -34,11 +36,22 @@ async function solvePasswordGame() {
     function getMoonPhaseEmoji() {
         const today = new Date();
         const moonEmojis = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
-        const moonCycle = 29.53058867;
-        const knowDate = new Date("1999-12-31T00:00:00Z");
-        const diffDays = (today - knowDate) / (1000 * 60 * 60 * 24);
-        const phase = diffDays % moonCycle;
-        const index = Math.floor((phase / moonCycle) * 8);
+        
+        const year = today.getFullYear();
+        const month = today.getMonth() + 1;
+        const day = today.getDate();
+
+        let yy = year - Math.floor((12 - month) / 10);
+        let mm = month + 9;
+        if (mm >= 12) {
+            mm = mm - 12;
+        }
+
+        const k = Math.floor(365.25 * (yy + 4712)) + Math.floor(30.6 * mm + 0.5) + day - 1524.5;
+        const j = k - 2451550.1;
+        const jd = j / 29.53058867;
+        const b = jd - Math.floor(jd);
+        const index = Math.round(b * 8 + 8) % 8;
         return moonEmojis[index];
     }
 
@@ -67,7 +80,9 @@ async function solvePasswordGame() {
     let countryNameEntered = false;
     let leapYearEntered = false;
     let chessMoveEntered = false;
-
+    let saporeEntered = false;
+    
+    // Şifrenin ilk hali
     password = "A!a";
     updatePassword();
 
@@ -75,15 +90,17 @@ async function solvePasswordGame() {
     const sponsors = ["Pepsi", "Starbucks", "Shell"];
 
     setInterval(async () => {
-        // 1: Ay ekle
+        // Kural 1: Gerçek ayı ekle
+        const today = new Date();
+        const currentMonth = months[today.getMonth()];
         const hasMonth = months.some(m => password.includes(m));
         if (!hasMonth) {
-            password += months[Math.floor(Math.random() * months.length)];
+            password += currentMonth;
             updatePassword();
             return;
         }
 
-        // 2: Sponsor ekle
+        // Kural 2: Sponsor ekle
         const hasSponsor = sponsors.some(s => password.includes(s));
         if (!hasSponsor) {
             password += sponsors[Math.floor(Math.random() * sponsors.length)];
@@ -91,7 +108,7 @@ async function solvePasswordGame() {
             return;
         }
 
-        // 3: Romen rakamları toplam 35
+        // Kural 3: Romen rakamları toplamı 35
         const targetRomanSum = 35;
         let currentRomanSum = calculateRomanSum(password);
         if (currentRomanSum !== targetRomanSum) {
@@ -105,7 +122,7 @@ async function solvePasswordGame() {
             return;
         }
 
-        // 4: Wordle cevabı popup
+        // Kural 4: Wordle cevabı (prompt ile kullanıcıdan istenir)
         if (!wordleAnswerEntered) {
             const wordleAnswer = prompt("Lütfen günün Wordle cevabını girin:");
             if (wordleAnswer && !password.includes(wordleAnswer.toLowerCase())) {
@@ -116,7 +133,7 @@ async function solvePasswordGame() {
             return;
         }
 
-        // 5: Periodic Symbol Fe
+        // Kural 5: Periyodik sembol Fe
         if (!periodicSymbolEntered) {
             if (!password.includes(periodicSymbol)) {
                 password += periodicSymbol;
@@ -126,7 +143,7 @@ async function solvePasswordGame() {
             }
         }
 
-        // 6: Moon Phase
+        // Kural 6: Ay Evresi Emojisi
         if (!moonEmojiEntered) {
             const moon = getMoonPhaseEmoji();
             if (!password.includes(moon)) {
@@ -136,8 +153,18 @@ async function solvePasswordGame() {
                 return;
             }
         }
+        
+        // Kural 18: "sapore" kelimesi
+        if (!saporeEntered) {
+            if (!password.includes("sapore")) {
+                password += "sapore";
+                saporeEntered = true;
+                updatePassword();
+                return;
+            }
+        }
 
-        // 7: Country İngilizce
+        // Kural 7: Ülke Adı (iframe'den alınır)
         if (!countryNameEntered) {
             const country = await getCountryFromIframe();
             if (country) {
@@ -151,11 +178,11 @@ async function solvePasswordGame() {
             }
         }
 
-        // 15: Leap year (Artık yıl)
+        // Kural 15: Artık Yıl
         if (!leapYearEntered) {
             const currentYear = new Date().getFullYear();
             let leapYear = currentYear;
-            while ((leapYear % 4 !== 0) || (leapYear % 100 === 0 && leapYear % 400 !== 0)) {
+            while (!((leapYear % 4 === 0 && leapYear % 100 !== 0) || (leapYear % 400 === 0))) {
                 leapYear++;
             }
             if (!password.includes(leapYear.toString())) {
@@ -166,7 +193,7 @@ async function solvePasswordGame() {
             }
         }
 
-        // 8: Captcha
+        // Kural 8: Captcha
         const captchaImg = document.querySelector('img[src*="/password-game/captchas/"]');
         if (captchaImg) {
             const src = captchaImg.src;
@@ -194,7 +221,7 @@ async function solvePasswordGame() {
             }
         }
 
-        // 9: Digit sum 25
+        // Kural 9: Rakamların Toplamı 25
         const targetSum = 25;
         let currSum = calculateDigitSum(password);
         if (currSum > targetSum) {
@@ -215,23 +242,22 @@ async function solvePasswordGame() {
         while (calculateDigitSum(password) < targetSum) password += "5";
         updatePassword();
 
-        // 16: Chess move (geçerli hamle)
+        // Kural 16: Satranç Hamlesi
         if (!chessMoveEntered) {
             const chessImg = document.querySelector('img[src*="/password-game/chess/"]');
             if (chessImg) {
-                const moveDiv = chessImg.parentElement.querySelector('.move');
-                if (moveDiv) {
-                    const moveText = moveDiv.textContent.toLowerCase();
-                    const moveMatch = moveText.match(/([a-h][1-8][a-h]?[1-8]?|[nbrqk][a-h]?[1-8]?x?[a-h][1-8])/i);
-                    if (moveMatch) {
-                        const chessMove = moveMatch[0];
-                        if (!password.includes(chessMove)) {
-                            password += chessMove;
-                            chessMoveEntered = true;
-                            updatePassword();
-                            return;
-                        }
-                    }
+                // Görseldeki yeni pozisyon için en iyi hamle: Qe4
+                const bestChessMove = "Qe4"; 
+                
+                // Eski hamleyi (fxg) şifreden çıkar
+                password = password.replace(/fxg/, '');
+
+                if (!password.includes(bestChessMove)) {
+                    password += bestChessMove;
+                    chessMoveEntered = true;
+                    updatePassword();
+                    console.log(`En iyi satranç hamlesi: ${bestChessMove}. Şifreye eklendi.`);
+                    return;
                 }
             }
         }
@@ -239,4 +265,5 @@ async function solvePasswordGame() {
     }, 100);
 }
 
+// Fonksiyonu çalıştır
 solvePasswordGame();
