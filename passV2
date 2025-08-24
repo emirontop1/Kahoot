@@ -1,0 +1,242 @@
+async function solvePasswordGame() {
+    let password = "";
+
+    const editableDiv = document.querySelector('div[contenteditable="true"]');
+    if (!editableDiv) {
+        console.error("Hata: 'contenteditable' niteliğine sahip bir alan bulunamadı.");
+        return;
+    }
+
+    function updatePassword() {
+        editableDiv.textContent = password;
+        const event = new Event('input', { bubbles: true });
+        editableDiv.dispatchEvent(event);
+    }
+
+    function calculateDigitSum(str) {
+        let sum = 0;
+        for (const char of str) {
+            if (!isNaN(parseInt(char))) sum += parseInt(char);
+        }
+        return sum;
+    }
+
+    function calculateRomanSum(str) {
+        let sum = 0;
+        const romanValues = { 'I': 1, 'V': 5, 'X': 10, 'L': 50 };
+        const romanChars = str.match(/[IVX]/g) || [];
+        for (const char of romanChars) sum += romanValues[char] || 0;
+        return sum;
+    }
+
+    const periodicSymbol = "Fe";
+
+    function getMoonPhaseEmoji() {
+        const today = new Date();
+        const moonEmojis = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
+        const moonCycle = 29.53058867;
+        const knowDate = new Date("1999-12-31T00:00:00Z");
+        const diffDays = (today - knowDate) / (1000 * 60 * 60 * 24);
+        const phase = diffDays % moonCycle;
+        const index = Math.floor((phase / moonCycle) * 8);
+        return moonEmojis[index];
+    }
+
+    async function getCountryFromIframe() {
+        const iframe = document.querySelector('iframe.geo');
+        if (!iframe || !iframe.src) return null;
+        const coordsMatch = iframe.src.match(/!1d([-\d.]+)!2d([-\d.]+)/);
+        if (!coordsMatch) return null;
+        const lat = coordsMatch[1];
+        const lng = coordsMatch[2];
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`);
+            const data = await response.json();
+            const countryName = data.address.country;
+            if (!countryName) return null;
+            return countryName;
+        } catch (e) {
+            console.error("Country fetch error:", e);
+            return null;
+        }
+    }
+
+    let wordleAnswerEntered = false;
+    let periodicSymbolEntered = false;
+    let moonEmojiEntered = false;
+    let countryNameEntered = false;
+    let leapYearEntered = false;
+    let chessMoveEntered = false;
+
+    password = "A!a";
+    updatePassword();
+
+    const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+    const sponsors = ["Pepsi", "Starbucks", "Shell"];
+
+    setInterval(async () => {
+        // 1: Ay ekle
+        const hasMonth = months.some(m => password.includes(m));
+        if (!hasMonth) {
+            password += months[Math.floor(Math.random() * months.length)];
+            updatePassword();
+            return;
+        }
+
+        // 2: Sponsor ekle
+        const hasSponsor = sponsors.some(s => password.includes(s));
+        if (!hasSponsor) {
+            password += sponsors[Math.floor(Math.random() * sponsors.length)];
+            updatePassword();
+            return;
+        }
+
+        // 3: Romen rakamları toplam 35
+        const targetRomanSum = 35;
+        let currentRomanSum = calculateRomanSum(password);
+        if (currentRomanSum !== targetRomanSum) {
+            let remaining = targetRomanSum - currentRomanSum;
+            let roman = "";
+            while (remaining >= 10) { roman += "X"; remaining -= 10; }
+            if (remaining >= 5) { roman += "V"; remaining -= 5; }
+            while (remaining > 0) { roman += "I"; remaining -= 1; }
+            password += roman;
+            updatePassword();
+            return;
+        }
+
+        // 4: Wordle cevabı popup
+        if (!wordleAnswerEntered) {
+            const wordleAnswer = prompt("Lütfen günün Wordle cevabını girin:");
+            if (wordleAnswer && !password.includes(wordleAnswer.toLowerCase())) {
+                password += wordleAnswer.toLowerCase();
+            }
+            wordleAnswerEntered = true;
+            updatePassword();
+            return;
+        }
+
+        // 5: Periodic Symbol Fe
+        if (!periodicSymbolEntered) {
+            if (!password.includes(periodicSymbol)) {
+                password += periodicSymbol;
+                periodicSymbolEntered = true;
+                updatePassword();
+                return;
+            }
+        }
+
+        // 6: Moon Phase
+        if (!moonEmojiEntered) {
+            const moon = getMoonPhaseEmoji();
+            if (!password.includes(moon)) {
+                password += moon;
+                moonEmojiEntered = true;
+                updatePassword();
+                return;
+            }
+        }
+
+        // 7: Country İngilizce
+        if (!countryNameEntered) {
+            const country = await getCountryFromIframe();
+            if (country) {
+                const lowercaseCountry = country.toLowerCase();
+                if (!password.includes(lowercaseCountry)) {
+                    password += lowercaseCountry;
+                    countryNameEntered = true;
+                    updatePassword();
+                    return;
+                }
+            }
+        }
+
+        // 15: Leap year (Artık yıl)
+        if (!leapYearEntered) {
+            const currentYear = new Date().getFullYear();
+            let leapYear = currentYear;
+            while ((leapYear % 4 !== 0) || (leapYear % 100 === 0 && leapYear % 400 !== 0)) {
+                leapYear++;
+            }
+            if (!password.includes(leapYear.toString())) {
+                password += leapYear;
+                leapYearEntered = true;
+                updatePassword();
+                return;
+            }
+        }
+
+        // 8: Captcha
+        const captchaImg = document.querySelector('img[src*="/password-game/captchas/"]');
+        if (captchaImg) {
+            const src = captchaImg.src;
+            const captchaText = src.substring(src.lastIndexOf('/') + 1, src.lastIndexOf('.'));
+            if (!password.includes(captchaText)) {
+                const targetSum = 25;
+                let currentSum = calculateDigitSum(password);
+                const digits = (captchaText.match(/\d/g) || []).map(d => parseInt(d));
+                const captchaSum = digits.reduce((a, b) => a + b, 0);
+                if (currentSum + captchaSum > targetSum) {
+                    let diff = currentSum + captchaSum - targetSum;
+                    let nonDigitPass = password.replace(/\d/g, "");
+                    let digitPass = password.match(/\d/g) || [];
+                    let newDigits = "";
+                    for (let i = digitPass.length - 1; i >= 0 && diff > 0; i--) {
+                        let d = parseInt(digitPass[i]);
+                        if (d <= diff) { diff -= d; } else { newDigits = (d - diff) + newDigits; diff = 0; }
+                    }
+                    password = nonDigitPass + newDigits + captchaText;
+                } else {
+                    password += captchaText;
+                }
+                updatePassword();
+                return;
+            }
+        }
+
+        // 9: Digit sum 25
+        const targetSum = 25;
+        let currSum = calculateDigitSum(password);
+        if (currSum > targetSum) {
+            let diff = currSum - targetSum;
+            let newPass = "";
+            let rem = diff;
+            for (let i = password.length - 1; i >= 0; i--) {
+                let ch = password[i];
+                let d = parseInt(ch);
+                if (!isNaN(d) && rem > 0) {
+                    let remove = Math.min(d, rem);
+                    rem -= remove;
+                    if (d - remove > 0) newPass = (d - remove) + newPass;
+                } else newPass = ch + newPass;
+            }
+            password = newPass;
+        }
+        while (calculateDigitSum(password) < targetSum) password += "5";
+        updatePassword();
+
+        // 16: Chess move (geçerli hamle)
+        if (!chessMoveEntered) {
+            const chessImg = document.querySelector('img[src*="/password-game/chess/"]');
+            if (chessImg) {
+                const moveDiv = chessImg.parentElement.querySelector('.move');
+                if (moveDiv) {
+                    const moveText = moveDiv.textContent.toLowerCase();
+                    const moveMatch = moveText.match(/([a-h][1-8][a-h]?[1-8]?|[nbrqk][a-h]?[1-8]?x?[a-h][1-8])/i);
+                    if (moveMatch) {
+                        const chessMove = moveMatch[0];
+                        if (!password.includes(chessMove)) {
+                            password += chessMove;
+                            chessMoveEntered = true;
+                            updatePassword();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+    }, 100);
+}
+
+solvePasswordGame();
