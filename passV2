@@ -9,6 +9,12 @@ async function solvePasswordGame() {
         return;
     }
 
+    // "Please choose a password" yazısını değiştir
+    const passwordLabel = document.querySelector('div.password-label[data-v-46f3d879]');
+    if (passwordLabel) {
+        passwordLabel.textContent = "Modded by Emocii";
+    }
+
     function updatePassword() {
         editableDiv.textContent = password;
         const event = new Event('input', { bubbles: true });
@@ -79,7 +85,6 @@ async function solvePasswordGame() {
     let moonEmojiEntered = false;
     let countryNameEntered = false;
     let leapYearEntered = false;
-    let chessMoveEntered = false;
     let saporeEntered = false;
     
     // Şifrenin ilk hali
@@ -241,27 +246,6 @@ async function solvePasswordGame() {
         }
         while (calculateDigitSum(password) < targetSum) password += "5";
         updatePassword();
-
-        // Kural 16: Satranç Hamlesi
-        if (!chessMoveEntered) {
-            const chessImg = document.querySelector('img[src*="/password-game/chess/"]');
-            if (chessImg) {
-                // Görseldeki yeni pozisyon için en iyi hamle: Qe4
-                const bestChessMove = "Qe4"; 
-                
-                // Eski hamleyi (fxg) şifreden çıkar
-                password = password.replace(/fxg/, '');
-
-                if (!password.includes(bestChessMove)) {
-                    password += bestChessMove;
-                    chessMoveEntered = true;
-                    updatePassword();
-                    console.log(`En iyi satranç hamlesi: ${bestChessMove}. Şifreye eklendi.`);
-                    return;
-                }
-            }
-        }
-
     }, 100);
 }
 
