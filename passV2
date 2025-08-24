@@ -1,7 +1,7 @@
 // solvePasswordGame.js
 
 async function solvePasswordGame() {
-    let password = "A!a";
+    let password = ".A!a.";
 
     const editableDiv = document.querySelector('div[contenteditable="true"]');
     if (!editableDiv) {
@@ -141,6 +141,7 @@ async function solvePasswordGame() {
     let chessMoveEntered = false;
     let currentCaptchaText = "";
 
+    // DÜZELTME: Tüm aylar eklendi
     const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
     const sponsors = ["Pepsi", "Starbucks", "Shell"];
 
@@ -331,7 +332,7 @@ async function solvePasswordGame() {
 
         if (allRulesCompleted) {
             clearInterval(intervalId);
-            console.log("Tüm kurallar başarıyla tamamlandı. Otomatik çözme durduruldu.");
+            console.log("Tüm kurallar başarıyla tamamlandı. Otomatik çözme durduruldu. Artık şifreyi manuel olarak düzenleyebilirsiniz.");
         }
     }, 100);
 }
