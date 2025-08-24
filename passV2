@@ -1,7 +1,7 @@
 // solvePasswordGame.js
 
 async function solvePasswordGame() {
-    let password = "";
+    let password = "A!a";
 
     const editableDiv = document.querySelector('div[contenteditable="true"]');
     if (!editableDiv) {
@@ -13,8 +13,6 @@ async function solvePasswordGame() {
     const passwordLabel = document.querySelector('div.password-label[data-v-46f3d879]');
     if (passwordLabel) {
         const gifUrl = "https://tenor.com/tr/view/lemonhota-elraenn-rraenee-limon-tayfa-twitch-t%C3%BCrkiye-gif-13401529742757133867.gif";
-
-        // Yeni HTML yapısını oluştur: "Modded by Emocii" ve "Kudurma aşkım"
         const newHtml = `
             <div class="modded-container">
                 <img src="${gifUrl}" alt="sol-gif" class="modded-gif">
@@ -23,10 +21,8 @@ async function solvePasswordGame() {
             </div>
             <div class="subtitle">Kudurma Hurinaz</div>
         `;
-        
         passwordLabel.innerHTML = newHtml;
 
-        // CSS'i dinamik olarak ekle
         if (!document.getElementById("modded-styles")) {
             const style = document.createElement('style');
             style.id = "modded-styles";
@@ -50,7 +46,6 @@ async function solvePasswordGame() {
                 .modded-text {
                     font-size: 24px;
                     font-weight: bold;
-                    /* Fenerbahçe temalı sarı-lacivert renkler */
                     background-image: linear-gradient(to right, #FFCC00, #004D99);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
@@ -94,17 +89,14 @@ async function solvePasswordGame() {
     function getMoonPhaseEmoji() {
         const today = new Date();
         const moonEmojis = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
-        
         const year = today.getFullYear();
         const month = today.getMonth() + 1;
         const day = today.getDate();
-
         let yy = year - Math.floor((12 - month) / 10);
         let mm = month + 9;
         if (mm >= 12) {
             mm = mm - 12;
         }
-
         const k = Math.floor(365.25 * (yy + 4712)) + Math.floor(30.6 * mm + 0.5) + day - 1524.5;
         const j = k - 2451550.1;
         const jd = j / 29.53058867;
@@ -132,27 +124,53 @@ async function solvePasswordGame() {
         }
     }
 
+    function refreshCaptcha() {
+        const refreshBtn = document.querySelector('.captcha-refresh');
+        if (refreshBtn) {
+            refreshBtn.click();
+        }
+    }
+
+    // Kural bayrakları
     let wordleAnswerEntered = false;
     let periodicSymbolEntered = false;
     let moonEmojiEntered = false;
     let countryNameEntered = false;
     let leapYearEntered = false;
     let saporeEntered = false;
-    
-    // Şifrenin ilk hali
-    password = "A!a";
-    updatePassword();
+    let chessMoveEntered = false;
+    let currentCaptchaText = "";
 
     const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
     const sponsors = ["Pepsi", "Starbucks", "Shell"];
 
-    setInterval(async () => {
+    const intervalId = setInterval(async () => {
+        // **ÖNCELİKLİ KONTROL:** Eğer "Illegal move" hatası varsa
+        const illegalMoveError = document.querySelector('div.rule.chess.rule-error');
+        if (illegalMoveError && illegalMoveError.textContent.includes("Illegal move")) {
+            console.log("Illegal move hatası tespit edildi. Sorunlu kısım temizleniyor.");
+            
+            // Eğer varsa önceki CAPTCHA ve rakamlarını şifreden çıkar
+            if (currentCaptchaText) {
+                // Sadece captcha metnini şifreden sil
+                const newPass = password.replace(currentCaptchaText, '');
+                
+                // Rakam toplamı kuralı için eklenen rakamları da silmek için
+                let finalPass = newPass.replace(/\d+$/, '');
+                password = finalPass;
+
+                updatePassword();
+            }
+
+            // CAPTCHA'yı yenile ve döngünün bu turunu durdur
+            refreshCaptcha();
+            return;
+        }
+
         // Kural 1: Gerçek ayı ekle
-        const today = new Date();
-        const currentMonth = months[today.getMonth()];
         const hasMonth = months.some(m => password.includes(m));
         if (!hasMonth) {
-            password += currentMonth;
+            password += months[new Date().getMonth()];
             updatePassword();
             return;
         }
@@ -210,7 +228,7 @@ async function solvePasswordGame() {
                 return;
             }
         }
-        
+
         // Kural 18: "sapore" kelimesi
         if (!saporeEntered) {
             if (!password.includes("sapore")) {
@@ -255,6 +273,7 @@ async function solvePasswordGame() {
         if (captchaImg) {
             const src = captchaImg.src;
             const captchaText = src.substring(src.lastIndexOf('/') + 1, src.lastIndexOf('.'));
+            currentCaptchaText = captchaText; // Yeni captcha metnini kaydet
             if (!password.includes(captchaText)) {
                 const targetSum = 25;
                 let currentSum = calculateDigitSum(password);
@@ -298,6 +317,34 @@ async function solvePasswordGame() {
         }
         while (calculateDigitSum(password) < targetSum) password += "5";
         updatePassword();
+
+        // Kural 23: Satranç Hamlesi
+        if (!chessMoveEntered) {
+            const chessRuleDiv = document.querySelector('div.rule.chess');
+            if (chessRuleDiv && chessRuleDiv.textContent.includes("best move")) {
+                const simpleChessMoves = ["a3", "b3", "c3", "e3", "g3", "h3"];
+                const randomMove = simpleChessMoves[Math.floor(Math.random() * simpleChessMoves.length)];
+                if (!password.includes(randomMove)) {
+                    password += randomMove;
+                    chessMoveEntered = true;
+                    updatePassword();
+                    return;
+                }
+            }
+        }
+
+        // Tüm kurallar tamamlandığında döngüyü durdur
+        const allRulesCompleted =
+            hasMonth && hasSponsor && (calculateRomanSum(password) === 35) &&
+            wordleAnswerEntered && periodicSymbolEntered && moonEmojiEntered &&
+            saporeEntered && countryNameEntered && leapYearEntered &&
+            (calculateDigitSum(password) === 25) &&
+            (chessMoveEntered || !document.querySelector('div.rule.chess'));
+
+        if (allRulesCompleted) {
+            clearInterval(intervalId);
+            console.log("Tüm kurallar başarıyla tamamlandı. Otomatik çözme durduruldu.");
+        }
     }, 100);
 }
 
