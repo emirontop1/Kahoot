@@ -1,0 +1,451 @@
+/* ---------- KONSOLA YAPIŞTIR: ZAMAN PANELI - GELIŞMIŞ (TABS, ARAMA, TAKIP) -------- */
+(() => {
+  // Eğer önceden yüklenmişse temizle
+  const ID = "__mega_time_panel_v2__";
+  if (document.getElementById(ID)) {
+    document.getElementById(ID).remove();
+    clearInterval(window.__mega_time_panel_interval_v2__);
+  }
+
+  // Hassas fark hesaplayıcı
+  function diffBreakdown(fromDate, toDate) {
+    let a = new Date(fromDate.getTime());
+    let b = new Date(toDate.getTime());
+    if (a > b) { const t = a; a = b; b = t; }
+    let years = b.getFullYear() - a.getFullYear();
+    let months = b.getMonth() - a.getMonth();
+    let days = b.getDate() - a.getDate();
+    let hours = b.getHours() - a.getHours();
+    let minutes = b.getMinutes() - a.getMinutes();
+    let seconds = b.getSeconds() - a.getSeconds();
+    if (seconds < 0) { seconds += 60; minutes -= 1; }
+    if (minutes < 0) { minutes += 60; hours -= 1; }
+    if (hours < 0) { hours += 24; days -= 1; }
+    if (days < 0) {
+      const prev = new Date(b.getFullYear(), b.getMonth(), 0);
+      days += prev.getDate();
+      months -= 1;
+    }
+    if (months < 0) { months += 12; years -= 1; }
+    return { years, months, days, hours, minutes, seconds };
+  }
+
+  function fmt(d) {
+    return `${d.years} yıl ${d.months} ay ${d.days} gün ${d.hours} saat ${d.minutes} dakika ${d.seconds} saniye`;
+  }
+
+  // Veri: Ülkeler, Kişiler, Olaylar, Bilim
+  // (Ben geniş ama makul bir set koydum; istersen daha da eklerim)
+  const DATA = [
+    // Ülkeler (modern/bağımsızlık/kuruluş tarihleri)
+    {id:"country_us", cat:"Ülkeler", name:"Amerika Birleşik Devletleri (Bağımsızlık)", date:"1776-07-04T00:00:00", note:"ABD bağımsızlık günü"},
+    {id:"country_uk", cat:"Ülkeler", name:"Birleşik Krallık (Acts of Union)", date:"1707-05-01T00:00:00"},
+    {id:"country_fr", cat:"Ülkeler", name:"Fransa (Cumhuriyet ilanı)", date:"1792-09-21T00:00:00"},
+    {id:"country_de", cat:"Ülkeler", name:"Almanya (Kaiserlik - birleşme)", date:"1871-01-18T00:00:00"},
+    {id:"country_it", cat:"Ülkeler", name:"İtalya (Unificazione)", date:"1861-03-17T00:00:00"},
+    {id:"country_es", cat:"Ülkeler", name:"İspanya (Modern krallık başlangıcı)", date:"1479-01-01T00:00:00", note:"Tarihsel, kabaca modernleşme başlangıcı"},
+    {id:"country_tr", cat:"Ülkeler", name:"Türkiye (Cumhuriyet)", date:"1923-10-29T00:00:00"},
+    {id:"country_in", cat:"Ülkeler", name:"Hindistan (Bağımsızlık)", date:"1947-08-15T00:00:00"},
+    {id:"country_pk", cat:"Ülkeler", name:"Pakistan (Bağımsızlık)", date:"1947-08-14T00:00:00"},
+    {id:"country_cn", cat:"Ülkeler", name:"Çin (PRC kuruluş)", date:"1949-10-01T00:00:00"},
+    {id:"country_jp", cat:"Ülkeler", name:"Japonya (Meiji Restorasyon başlangıcı)", date:"1868-01-03T00:00:00"},
+    {id:"country_ca", cat:"Ülkeler", name:"Kanada (Konfederasyon)", date:"1867-07-01T00:00:00"},
+    {id:"country_au", cat:"Ülkeler", name:"Avustralya (Federasyon)", date:"1901-01-01T00:00:00"},
+    {id:"country_br", cat:"Ülkeler", name:"Brezilya (Bağımsızlık)", date:"1822-09-07T00:00:00"},
+    {id:"country_mx", cat:"Ülkeler", name:"Meksika (Bağımsızlık ilanı)", date:"1810-09-16T00:00:00"},
+    {id:"country_ar", cat:"Ülkeler", name:"Arjantin (Bağımsızlık)", date:"1816-07-09T00:00:00"},
+    {id:"country_ru", cat:"Ülkeler", name:"Rusya Federasyonu (modern)", date:"1991-12-25T00:00:00"},
+    {id:"country_sa", cat:"Ülkeler", name:"Suudi Arabistan (modern kurulus)", date:"1932-09-23T00:00:00"},
+    {id:"country_il", cat:"Ülkeler", name:"İsrail (İlan)", date:"1948-05-14T00:00:00"},
+    {id:"country_za", cat:"Ülkeler", name:"Güney Afrika (Union)", date:"1910-05-31T00:00:00"},
+    {id:"country_eg", cat:"Ülkeler", name:"Mısır (modern devlet başlangıcı örnek)", date:"1922-02-28T00:00:00"},
+    {id:"country_id", cat:"Ülkeler", name:"Endonezya (Bağımsızlık ilanı)", date:"1945-08-17T00:00:00"},
+    {id:"country_ng", cat:"Ülkeler", name:"Nijerya (Bağımsızlık)", date:"1960-10-01T00:00:00"},
+    {id:"country_pk2", cat:"Ülkeler", name:"Pakistan (Dominion->Republika dön.)", date:"1956-03-23T00:00:00"},
+    // Kişiler (doğum/ölüm)
+    {id:"p_ataturk_birth", cat:"Kişiler", name:"Mustafa Kemal Atatürk - Doğum (yıl:1881)", date:"1881-01-01T00:00:00", note:"1881 yılı, kesin gün bilinmiyor — gösterim amaçlı 1 Ocak alındı"},
+    {id:"p_ataturk_death", cat:"Kişiler", name:"Mustafa Kemal Atatürk - Ölüm", date:"1938-11-10T09:05:00"},
+    {id:"p_gandhi_birth", cat:"Kişiler", name:"Mahatma Gandhi - Doğum", date:"1869-10-02T00:00:00"},
+    {id:"p_gandhi_death", cat:"Kişiler", name:"Mahatma Gandhi - Ölüm", date:"1948-01-30T00:00:00"},
+    {id:"p_mandela_birth", cat:"Kişiler", name:"Nelson Mandela - Doğum", date:"1918-07-18T00:00:00"},
+    {id:"p_mandela_death", cat:"Kişiler", name:"Nelson Mandela - Ölüm", date:"2013-12-05T00:00:00"},
+    {id:"p_galileo", cat:"Kişiler", name:"Galileo Galilei - Doğum", date:"1564-02-15T00:00:00"},
+    {id:"p_newton", cat:"Kişiler", name:"Isaac Newton - Doğum", date:"1642-12-25T00:00:00"},
+    {id:"p_einstein", cat:"Kişiler", name:"Albert Einstein - Doğum", date:"1879-03-14T00:00:00"},
+    {id:"p_einstein_death", cat:"Kişiler", name:"Albert Einstein - Ölüm", date:"1955-04-18T00:00:00"},
+    {id:"p_darwin", cat:"Kişiler", name:"Charles Darwin - Doğum", date:"1809-02-12T00:00:00"},
+    {id:"p_mlk", cat:"Kişiler", name:"Martin Luther King Jr. - Doğum", date:"1929-01-15T00:00:00"},
+    {id:"p_mlk_death", cat:"Kişiler", name:"Martin Luther King Jr. - Ölüm", date:"1968-04-04T00:00:00"},
+    {id:"p_marie", cat:"Kişiler", name:"Marie Curie - Doğum", date:"1867-11-07T00:00:00"},
+    {id:"p_nelson_ro", cat:"Kişiler", name:"Winston Churchill - Doğum", date:"1874-11-30T00:00:00"},
+    {id:"p_lenin", cat:"Kişiler", name:"Vladimir Lenin - Doğum", date:"1870-04-22T00:00:00"},
+    {id:"p_mozart", cat:"Kişiler", name:"Wolfgang Amadeus Mozart - Doğum", date:"1756-01-27T00:00:00"},
+    // Olaylar
+    {id:"ev_ww1_start", cat:"Olaylar", name:"I. Dünya Savaşı Başlangıcı", date:"1914-07-28T00:00:00"},
+    {id:"ev_ww1_end", cat:"Olaylar", name:"I. Dünya Savaşı Sonu", date:"1918-11-11T00:00:00"},
+    {id:"ev_ww2_start", cat:"Olaylar", name:"II. Dünya Savaşı Başlangıcı", date:"1939-09-01T00:00:00"},
+    {id:"ev_ww2_end", cat:"Olaylar", name:"II. Dünya Savaşı Sonu", date:"1945-09-02T00:00:00"},
+    {id:"ev_moon", cat:"Olaylar", name:"İlk Ay'a İnsanlı İniş", date:"1969-07-20T20:17:00"},
+    {id:"ev_frenchrev", cat:"Olaylar", name:"Bastille Günü (Fransız Devrimi)", date:"1789-07-14T00:00:00"},
+    {id:"ev_un", cat:"Olaylar", name:"Birleşmiş Milletler Kuruluşu", date:"1945-10-24T00:00:00"},
+    {id:"ev_eu", cat:"Olaylar", name:"Roma Antlaşması (EEC başlangıcı)", date:"1957-03-25T00:00:00"},
+    {id:"ev_industrial", cat:"Olaylar", name:"Sanayi Devrimi (kaba başlangıç)", date:"1760-01-01T00:00:00", note:"tarihler bölgesel olarak değişir"},
+    // Bilim & Keşifler
+    {id:"s_penicillin", cat:"Bilim", name:"Penisilin keşfi (Fleming)", date:"1928-09-28T00:00:00"},
+    {id:"s_dna", cat:"Bilim", name:"DNA çift sarmalinin keşfi (Watson/Crick)", date:"1953-04-25T00:00:00"},
+    {id:"s_ww", cat:"Bilim", name:"İlk bilgisayar (ENIAC tamamlanması)", date:"1945-02-15T00:00:00"},
+    {id:"s_rel", cat:"Bilim", name:"Görecelik Teorisi (Einstein, 1905)", date:"1905-11-21T00:00:00"},
+    {id:"s_vaccine", cat:"Bilim", name:"İlk kuduz aşısı (Pasteur)", date:"1885-07-06T00:00:00"}
+  ];
+
+  // Arayüz oluşturma
+  const wrap = document.createElement("div");
+  wrap.id = ID;
+  wrap.style.position = "fixed";
+  wrap.style.right = "14px";
+  wrap.style.top = "14px";
+  wrap.style.width = "420px";
+  wrap.style.maxHeight = "88vh";
+  wrap.style.overflow = "auto";
+  wrap.style.zIndex = 999999999;
+  wrap.style.background = "linear-gradient(180deg,#0b0b0d,#0f1113)";
+  wrap.style.border = "1px solid rgba(255,255,255,0.06)";
+  wrap.style.padding = "10px";
+  wrap.style.borderRadius = "10px";
+  wrap.style.color = "#e6eef8";
+  wrap.style.fontFamily = "Arial, Helvetica, sans-serif";
+  wrap.style.fontSize = "13px";
+  wrap.style.boxShadow = "0 8px 30px rgba(0,0,0,0.6)";
+
+  // Header + controls
+  const hdr = document.createElement("div");
+  hdr.style.display = "flex";
+  hdr.style.justifyContent = "space-between";
+  hdr.style.alignItems = "center";
+  hdr.style.marginBottom = "8px";
+  wrap.appendChild(hdr);
+
+  const title = document.createElement("div");
+  title.innerHTML = "<strong style='color:#7bd389'>Zaman & Önemli Tarihler</strong><div style='font-size:11px;opacity:0.8'>Sekmelerle keşfet — takip et, kopyala</div>";
+  hdr.appendChild(title);
+
+  const controls = document.createElement("div");
+  controls.style.display = "flex";
+  controls.style.gap = "6px";
+  hdr.appendChild(controls);
+
+  function ctrlBtn(txt, titleText) {
+    const b = document.createElement("button");
+    b.textContent = txt;
+    b.title = titleText || txt;
+    b.style.background = "transparent";
+    b.style.border = "1px solid rgba(255,255,255,0.04)";
+    b.style.color = "#dfe";
+    b.style.padding = "6px 8px";
+    b.style.borderRadius = "6px";
+    b.style.cursor = "pointer";
+    b.onmouseenter = () => b.style.background = "rgba(255,255,255,0.02)";
+    b.onmouseleave = () => b.style.background = "transparent";
+    return b;
+  }
+
+  const copyAllBtn = ctrlBtn("⧉", "Tüm görünümü panoya kopyala");
+  const closeBtn = ctrlBtn("✕", "Kapat");
+  controls.appendChild(copyAllBtn);
+  controls.appendChild(closeBtn);
+
+  closeBtn.onclick = () => { wrap.remove(); clearInterval(window.__mega_time_panel_interval_v2__); };
+
+  // Tabs
+  const tabRow = document.createElement("div");
+  tabRow.style.display = "flex";
+  tabRow.style.gap = "6px";
+  tabRow.style.marginBottom = "8px";
+  wrap.appendChild(tabRow);
+
+  const tabs = ["Ülkeler","Kişiler","Olaylar","Bilim","Özel"];
+  let activeTab = "Ülkeler";
+  tabs.forEach(t => {
+    const tb = document.createElement("button");
+    tb.textContent = t;
+    tb.style.flex = "1";
+    tb.style.padding = "8px";
+    tb.style.borderRadius = "8px";
+    tb.style.cursor = "pointer";
+    tb.style.border = "none";
+    tb.style.background = t===activeTab ? "#1f6f4d" : "transparent";
+    tb.style.color = t===activeTab ? "#fff" : "#bfe";
+    tb.onclick = () => {
+      activeTab = t;
+      renderList();
+      // update tab styles
+      [...tabRow.children].forEach(c => c.style.background = c.textContent===activeTab ? "#1f6f4d" : "transparent");
+    };
+    tabRow.appendChild(tb);
+  });
+
+  // Search + sort + follow area
+  const optsRow = document.createElement("div");
+  optsRow.style.display = "flex";
+  optsRow.style.gap = "6px";
+  optsRow.style.marginBottom = "8px";
+  wrap.appendChild(optsRow);
+
+  const searchInput = document.createElement("input");
+  searchInput.placeholder = "Ara: ülke / kişi / olay...";
+  searchInput.style.flex = "1";
+  searchInput.style.padding = "8px";
+  searchInput.style.borderRadius = "8px";
+  searchInput.style.border = "1px solid rgba(255,255,255,0.04)";
+  searchInput.style.background = "transparent";
+  searchInput.style.color = "#fff";
+  optsRow.appendChild(searchInput);
+
+  const sortSelect = document.createElement("select");
+  sortSelect.style.padding = "8px";
+  sortSelect.style.borderRadius = "8px";
+  sortSelect.style.border = "1px solid rgba(255,255,255,0.04)";
+  sortSelect.innerHTML = `<option value="asc">En eski →</option><option value="desc">En yeni →</option>`;
+  optsRow.appendChild(sortSelect);
+
+  // main content: list + details
+  const main = document.createElement("div");
+  main.style.display = "flex";
+  main.style.gap = "8px";
+  wrap.appendChild(main);
+
+  const listBox = document.createElement("div");
+  listBox.style.flex = "1";
+  listBox.style.maxHeight = "48vh";
+  listBox.style.overflow = "auto";
+  listBox.style.paddingRight = "6px";
+  main.appendChild(listBox);
+
+  const detailBox = document.createElement("div");
+  detailBox.style.flex = "0.9";
+  detailBox.style.minWidth = "160px";
+  detailBox.style.maxHeight = "48vh";
+  detailBox.style.overflow = "auto";
+  detailBox.style.padding = "8px";
+  detailBox.style.background = "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))";
+  detailBox.style.borderRadius = "8px";
+  main.appendChild(detailBox);
+
+  // follow/top area
+  const followArea = document.createElement("div");
+  followArea.style.marginTop = "8px";
+  followArea.style.padding = "8px";
+  followArea.style.background = "rgba(0,0,0,0.2)";
+  followArea.style.borderRadius = "8px";
+  followArea.style.fontSize = "13px";
+  followArea.innerHTML = "<strong>Takipteki (Üst):</strong><div id='__follow_list'></div>";
+  wrap.appendChild(followArea);
+
+  const followListEl = followArea.querySelector("#__follow_list");
+  let following = []; // array of item ids
+
+  function addFollow(id) {
+    if (!following.includes(id)) following.push(id);
+    renderFollow();
+  }
+  function removeFollow(id) {
+    following = following.filter(x => x !== id);
+    renderFollow();
+  }
+  function renderFollow() {
+    followListEl.innerHTML = "";
+    if (following.length === 0) { followListEl.innerHTML = "<div style='opacity:0.7'>Takipte kimse yok. Listeden bir öğeyi takip et.</div>"; return; }
+    following.forEach(fid => {
+      const item = DATA.find(d => d.id===fid);
+      if (!item) return;
+      const row = document.createElement("div");
+      row.style.display = "flex"; row.style.justifyContent = "space-between"; row.style.alignItems = "center"; row.style.padding = "6px 0";
+      row.innerHTML = `<div style="font-weight:600">${item.name}</div>`;
+      const rm = document.createElement("button"); rm.textContent = "✕"; rm.style.border="none"; rm.style.background="transparent"; rm.style.color="#f66"; rm.style.cursor="pointer";
+      rm.onclick = () => removeFollow(fid);
+      row.appendChild(rm);
+      followListEl.appendChild(row);
+    });
+  }
+
+  // Render list for activeTab & search & sort
+  function renderList() {
+    listBox.innerHTML = "";
+    const q = (searchInput.value || "").toLowerCase().trim();
+    let items = DATA.filter(d => d.cat === activeTab || (activeTab==="Özel" && d.cat==="Özel"));
+    if (q) items = items.filter(d => (d.name + " " + (d.note||"")).toLowerCase().includes(q));
+    // sort by date
+    items.sort((a,b) => {
+      const da = new Date(a.date).getTime(); const db = new Date(b.date).getTime();
+      return sortSelect.value === "asc" ? da - db : db - da;
+    });
+    if (items.length === 0) {
+      listBox.innerHTML = "<div style='opacity:0.8;padding:6px'>Bulunamadı.</div>";
+      detailBox.innerHTML = "";
+      return;
+    }
+
+    items.forEach(it => {
+      const line = document.createElement("div");
+      line.style.padding = "8px";
+      line.style.borderBottom = "1px solid rgba(255,255,255,0.03)";
+      line.style.cursor = "pointer";
+      line.onmouseenter = () => line.style.background = "rgba(255,255,255,0.01)";
+      line.onmouseleave = () => line.style.background = "transparent";
+      const dateStr = new Date(it.date).toLocaleString();
+      line.innerHTML = `<div style="font-weight:600">${it.name}</div><div style="font-size:12px;opacity:0.8;">${dateStr}${it.note ? " — " + it.note : ""}</div>`;
+      line.onclick = () => showDetail(it.id);
+      listBox.appendChild(line);
+    });
+
+    // show first item by default
+    showDetail(items[0].id);
+  }
+
+  // show detail on right
+  function showDetail(id) {
+    const it = DATA.find(d => d.id===id);
+    if (!it) { detailBox.innerHTML = ""; return; }
+    detailBox.innerHTML = "";
+    const title = document.createElement("div");
+    title.style.fontWeight = "800";
+    title.style.fontSize = "14px";
+    title.style.marginBottom = "6px";
+    title.textContent = it.name;
+    detailBox.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.style.fontSize = "12px";
+    meta.style.opacity = "0.85";
+    meta.textContent = `Tarih: ${new Date(it.date).toLocaleString()}${it.note ? " — " + it.note : ""}`;
+    detailBox.appendChild(meta);
+
+    const live = document.createElement("div");
+    live.style.marginTop = "10px";
+    live.style.fontWeight = "700";
+    live.style.fontSize = "13px";
+    live.textContent = "...";
+    detailBox.appendChild(live);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.gap = "6px";
+    btnRow.style.marginTop = "10px";
+    detailBox.appendChild(btnRow);
+
+    const followBtn = document.createElement("button");
+    followBtn.textContent = following.includes(it.id) ? "Takipten Çıkar" : "Takip Et";
+    followBtn.onclick = () => {
+      if (following.includes(it.id)) { removeFollow(it.id); followBtn.textContent = "Takip Et"; }
+      else { addFollow(it.id); followBtn.textContent = "Takipten Çıkar"; }
+    };
+    btnRow.appendChild(followBtn);
+
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Kopyala";
+    copyBtn.onclick = () => {
+      const d = new Date(it.date);
+      const diff = diffBreakdown(d, new Date());
+      navigator.clipboard?.writeText(`${it.name} — ${it.date} — ${fmt(diff)}`).then(()=> {
+        copyBtn.textContent = "Kopyalandı ✓";
+        setTimeout(()=> copyBtn.textContent = "Kopyala", 1200);
+      }).catch(()=> alert("Kopyalama izinleri yok."));
+    };
+    btnRow.appendChild(copyBtn);
+
+    // Attach live updater reference
+    detailBox._liveElem = live;
+    detailBox._itemId = it.id;
+    // initialize value
+    const diff = diffBreakdown(new Date(it.date), new Date());
+    live.textContent = fmt(diff);
+  }
+
+  // copyAll function
+  copyAllBtn.onclick = () => {
+    const now = new Date();
+    const lines = [`Anlık Zaman & Önemli Tarihler — ${now.toLocaleString()}`];
+    DATA.forEach(it => {
+      const d = new Date(it.date);
+      const diff = diffBreakdown(d, now);
+      lines.push(`${it.cat} | ${it.name} (${it.date}) → ${fmt(diff)}`);
+    });
+    navigator.clipboard?.writeText(lines.join("\n")).then(()=> {
+      copyAllBtn.textContent = "Kopyalandı ✓";
+      setTimeout(()=> copyAllBtn.textContent = "⧉", 1200);
+    }).catch(()=> alert("Panoya kopyalama başarısız."));
+  };
+
+  // Özel tarih ekleme (Özel tab)
+  function addCustomItem(name, dateStr, note="") {
+    const id = "custom_"+Math.random().toString(36).slice(2,9);
+    DATA.push({id, cat:"Özel", name, date:dateStr, note});
+    if (activeTab==="Özel") renderList();
+    return id;
+  }
+
+  // Quick: örnek özel ekleme butonu
+  const quickAddBtn = ctrlBtn("+Özel", "Hızlı özel tarih ekle (örn: Mustafa 2000-01-01)");
+  quickAddBtn.onclick = () => {
+    const nm = prompt("Başlık (ör: Babamın doğumu):");
+    if(!nm) return;
+    const dt = prompt("Tarih (YYYY-MM-DD veya tam ISO):", (new Date()).toISOString().slice(0,19));
+    if(!dt) return;
+    addCustomItem(nm, new Date(dt).toISOString(), "");
+    if (activeTab==="Özel") renderList();
+    alert("Özel tarih eklendi ve Özel sekmesinde görünecek.");
+  };
+  controls.insertBefore(quickAddBtn, closeBtn);
+
+  // Arama/Sort etkileşimi
+  searchInput.oninput = () => renderList();
+  sortSelect.onchange = () => renderList();
+
+  // Render initial
+  renderList();
+  renderFollow();
+
+  // Live updater (her saniye)
+  function updateAll() {
+    const now = new Date();
+    // Update detail live if open
+    if (detailBox._itemId) {
+      const it = DATA.find(d=>d.id===detailBox._itemId);
+      if (it && detailBox._liveElem) {
+        detailBox._liveElem.textContent = fmt(diffBreakdown(new Date(it.date), now));
+      }
+    }
+    // Update follow list small times (inline)
+    followListEl.querySelectorAll("div").forEach((row, idx) => {
+      const fid = following[idx];
+      const it = DATA.find(d=>d.id===fid);
+      if (!it) return;
+      // append small time after title
+      const timeStr = fmt(diffBreakdown(new Date(it.date), now));
+      const existing = row.querySelector(".__t");
+      if (existing) existing.textContent = timeStr;
+      else {
+        const s = document.createElement("div");
+        s.className = "__t";
+        s.style.fontSize = "12px";
+        s.style.opacity = "0.8";
+        s.style.marginTop = "4px";
+        s.textContent = timeStr;
+        row.appendChild(s);
+      }
+    });
+    // Update list items visible (opt: update first N)
+    Array.from(listBox.children).slice(0,50).forEach(li => {
+      // If this list item corresponds to the visible detail, it's updated there.
+    });
+    // Update imp small badges in tab (optional: skip for perf)
+  }
+
+  window.__mega_time_panel_interval_v2__ = setInterval(updateAll, 1000);
+
+  // Son: ekrana ekle
+  document.body.appendChild(wrap);
+
+  // Bilgilendirme
+  console.log("Zaman & Önemli Tarihler panel yüklendi — Sekmelerden gez, arama yap, öğe seçince sağda canlı zamanı görürsün. Özel tarih eklemek için +Özel butonunu kullan.");
+})();
