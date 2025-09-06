@@ -1,0 +1,260 @@
+(async function() {
+  // ---------- API Ayarları ----------
+  const GROQ_API_KEY = "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";
+  const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+  const MODEL = "llama-3.1-8b-instant"; 
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SpeechSynthesis = window.speechSynthesis;
+  if (!SpeechRecognition || !SpeechSynthesis) {
+    alert("Tarayıcınız bu uygulamayı desteklemiyor. Lütfen güncel bir tarayıcı kullanın.");
+    return;
+  }
+
+  // ---------- Modern GUI Oluşturma ----------
+  const card = document.createElement("div");
+  Object.assign(card.style, {
+    position: "fixed",
+    right: "18px",
+    bottom: "18px",
+    width: "320px",
+    maxWidth: "calc(100vw - 36px)",
+    padding: "14px",
+    background: "linear-gradient(180deg,#0f1724,#071021)",
+    color: "#e6eef8",
+    borderRadius: "12px",
+    boxShadow: "0 8px 30px rgba(2,6,23,0.6)",
+    fontFamily: "Inter, Roboto, Arial, sans-serif",
+    zIndex: 2147483647,
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    alignItems: "stretch",
+    lineHeight: "1.2"
+  });
+
+  const title = document.createElement("div");
+  title.innerHTML = "<strong>Voice Chat (GROQ)</strong>";
+  title.style.fontSize = "14px";
+  const status = document.createElement("div");
+  status.textContent = "Durum: Hazır 🟢";
+  status.style.fontSize = "13px";
+  const info = document.createElement("div");
+  info.textContent = "Mesaj: Bekleniyor...";
+  info.style.fontSize = "13px";
+  info.style.whiteSpace = "pre-wrap";
+  info.style.maxHeight = "160px";
+  info.style.overflow = "auto";
+  const hint = document.createElement("div");
+  hint.textContent = "Konuşmaya başla — mikrofon yalnızca konuştuğunda açılır.";
+  hint.style.fontSize = "11px";
+  hint.style.opacity = "0.8";
+
+  card.appendChild(title);
+  card.appendChild(status);
+  card.appendChild(info);
+  card.appendChild(hint);
+  document.body.appendChild(card);
+
+  const s = document.createElement("style");
+  s.textContent = `
+    @keyframes vpulse { 0%{transform:scale(1)}50%{transform:scale(1.2)}100%{transform:scale(1)} }
+    #ICantFindDomain-interim-message-text { color: #8b949e; font-style: italic; }
+  `;
+  document.head.appendChild(s);
+
+  let currentRecognitionLang = navigator.language || 'en-US';
+  let isBusy = false;
+
+  // ---------- Yardımcı Fonksiyonlar ----------
+  async function callGrokAPI(userText, lang) {
+    const payload = {
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `Lütfen kullanıcının konuştuğu dilde, kısa ve öz yanıtlar verin. Kullanıcının dili: ${lang}`
+        },
+        {
+          role: "user",
+          content: userText
+        }
+      ]
+    };
+    try {
+      const res = await fetch(GROQ_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GROQ_API_KEY}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status} ${res.statusText} ${txt}`);
+      }
+      const data = await res.json();
+      const reply = data.choices[0].message.content || "Yanıt alınamadı.";
+      
+      let i = 0;
+      info.textContent = "Grok: ";
+      const typingInterval = setInterval(() => {
+        if (i < reply.length) {
+          info.textContent += reply.charAt(i);
+          info.scrollTop = info.scrollHeight;
+          i++;
+        } else {
+          clearInterval(typingInterval);
+        }
+      }, 20); // Her 20ms'de bir harf ekle
+
+      return reply;
+    } catch (err) {
+      console.error("API hatası:", err);
+      return "API hatası: " + (err.message || String(err));
+    }
+  }
+
+  async function listenOnce() {
+    return new Promise((resolve, reject) => {
+      const rec = new SpeechRecognition();
+      rec.lang = currentRecognitionLang;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.continuous = false;
+
+      let finalTranscript = "";
+      let finished = false;
+
+      rec.onstart = () => {
+        status.textContent = "Durum: Dinleniyor... 🔴";
+        status.style.animation = "vpulse 1s infinite";
+        hint.textContent = "Konuşuyorsun — bitirince bekle...";
+      };
+
+      rec.onresult = (e) => {
+        let currentInterim = "";
+        for (let i = e.resultIndex; i < e.results.length; ++i) {
+          if (e.results[i].isFinal) {
+            finalTranscript += e.results[i][0].transcript;
+            currentRecognitionLang = e.results[i][0].lang || currentRecognitionLang;
+          } else {
+            currentInterim += e.results[i][0].transcript;
+          }
+        }
+        info.textContent = finalTranscript + currentInterim;
+        if (e.results[e.results.length - 1].isFinal) {
+          info.style.color = "#e6eef8";
+          finished = true;
+          try { rec.stop(); } catch(_) {}
+          resolve({ text: finalTranscript.trim(), lang: currentRecognitionLang });
+        } else {
+           info.style.color = "#8b949e";
+        }
+      };
+
+      rec.onerror = (ev) => {
+        info.style.color = "#e6eef8";
+        finished = true;
+        try { rec.stop(); } catch(_) {}
+        reject(ev.error || "unknown");
+      };
+
+      rec.onend = () => {
+        status.style.animation = "";
+        if (!finished) resolve({ text: null, lang: currentRecognitionLang });
+      };
+
+      try { rec.start(); } catch(err) { reject(err); }
+
+      setTimeout(()=>{ if(!finished) { try{rec.stop();}catch(_){} resolve({ text: null, lang: currentRecognitionLang }); } }, 15000);
+    });
+  }
+
+  async function speakText(text, lang) {
+    return new Promise((resolve) => {
+      const u = new SpeechSynthesisUtterance(text);
+      
+      const voices = SpeechSynthesis.getVoices();
+      const preferredVoice = voices.find(voice => voice.lang.startsWith(lang) && (voice.name.includes("Google") || voice.default));
+      if (preferredVoice) {
+        u.voice = preferredVoice;
+      } else {
+        u.lang = lang;
+      }
+      u.onend = () => resolve();
+      u.onerror = (e) => {
+        console.error("SpeechSynthesis hatası:", e);
+        resolve();
+      };
+      SpeechSynthesis.cancel();
+      SpeechSynthesis.speak(u);
+    });
+  }
+  
+  async function checkMicPermission() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (err) {
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        alert("Sesli sohbeti kullanmak için lütfen mikrofon erişimine izin verin.");
+      } else {
+        alert("Mikrofon hatası: " + err.message);
+      }
+      return false;
+    }
+  }
+
+  // ---------- Ana Döngü ----------
+  async function mainLoop() {
+    if (!(await checkMicPermission())) {
+      status.textContent = "Hata: Mikrofon erişimi reddedildi ❌";
+      hint.textContent = "Lütfen tarayıcı ayarlarından mikrofon erişimine izin verin.";
+      return;
+    }
+
+    while (true) {
+      if (isBusy) { await new Promise(r => setTimeout(r, 500)); continue; }
+
+      status.textContent = "Durum: Hazır 🟢";
+      hint.textContent = "Konuşmaya başla — mikrofon yalnızca konuştuğunda açılır.";
+      info.textContent = "Mesaj: Bekleniyor...";
+      info.style.color = "#e6eef8";
+
+      try {
+        isBusy = true;
+        const result = await listenOnce();
+        const userText = result.text;
+        const detectedLang = result.lang;
+
+        if (!userText) { isBusy = false; continue; }
+
+        info.textContent = "Algılandı: " + userText;
+        status.textContent = `Gönderiliyor (${detectedLang})... 🟡`;
+
+        const reply = await callGrokAPI(userText, detectedLang);
+
+        if(reply && !reply.startsWith("API hatası")) {
+          status.textContent = "Bot konuşuyor... 🔊";
+          await speakText(reply, detectedLang);
+        }
+
+        isBusy = false;
+        status.textContent = "Tamamlandı ✅";
+
+        await new Promise(r => setTimeout(r, 600));
+      } catch (err) {
+        console.error(err);
+        info.textContent = "Hata: " + (err.message || String(err));
+        status.textContent = "Hata ❌";
+        isBusy = false;
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+  }
+
+  mainLoop();
+})();
