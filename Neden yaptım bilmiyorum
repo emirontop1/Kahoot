@@ -1,0 +1,101 @@
+
+(function() {
+    const asciiChars = "$@BbdpqwmZO0QLCJUYTXzcvunxrjft/\\|()1{}[]?lI;:,\"^`'. "; 
+    const resizeFactor = 1;
+
+    const appContainer = document.createElement('div');
+    appContainer.style.cssText = `
+        position: fixed; inset: 0; z-index: 99999;
+        background: #000; display: flex; flex-direction: column;
+        font-family: monospace; color: #fff;
+    `;
+    appContainer.innerHTML = `
+        <div style="flex: 0 0 auto; background: #111; padding: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #61dafb;">
+            <h3 style="margin: 0; color: #61dafb;">✨ Full Ekran ASCII</h3>
+            <div>
+                <input type="file" id="colorAsciiUploader" accept="image/*" style="color: #fff; background: #222; border: 1px solid #444; padding: 5px; border-radius: 4px;">
+                <button id="closeColorAsciiApp" style="margin-left: 10px; background:none; border:none; font-size:1.6em; cursor:pointer; color:#ff6e6e;">&times;</button>
+            </div>
+        </div>
+        <div id="outputContainer" style="flex-grow:1; overflow:auto; display:flex; justify-content:center; align-items:center;">
+            <pre id="asciiOutputColor" style="white-space:pre; margin:0; font-family:'Courier New', monospace; text-align:center;">📂 Lütfen bir görsel seçin...</pre>
+        </div>
+        <canvas id="hiddenCanvasColor" style="display:none;"></canvas>
+    `;
+    document.body.appendChild(appContainer);
+
+    const uploader = document.getElementById('colorAsciiUploader');
+    const asciiOutput = document.getElementById('asciiOutputColor');
+    const hiddenCanvas = document.getElementById('hiddenCanvasColor');
+    const ctx = hiddenCanvas.getContext('2d');
+    const closeButton = document.getElementById('closeColorAsciiApp');
+
+    closeButton.addEventListener('click', () => appContainer.remove());
+
+    function processImage(img) {
+        const maxWidth = window.innerWidth;
+        const maxHeight = window.innerHeight - 60; // üst bar için boşluk
+        const charAspect = 0.5; // yükseklik/genişlik oranı (height ≈ 2×width)
+
+        // Görsel boyutunu font aspect ratio ile ölçekle
+        const scaleX = maxWidth / img.width;
+        const scaleY = maxHeight / (img.height / charAspect);
+        const scale = Math.min(scaleX, scaleY);
+
+        const width = Math.floor(img.width * scale / resizeFactor);
+        const height = Math.floor(img.height * scale / resizeFactor);
+
+        hiddenCanvas.width = width;
+        hiddenCanvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Dinamik font boyutu
+        const fontSize = Math.max(5, Math.floor(maxWidth / width));
+        asciiOutput.style.fontSize = fontSize + "px";
+        asciiOutput.style.lineHeight = fontSize * charAspect + "px";
+
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+        let asciiArtHTML = '';
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const i = (y * width + x) * 4;
+                let r = imageData[i], g = imageData[i+1], b = imageData[i+2];
+
+                // Kontrast/gamma düzeltme
+                const adjust = c => Math.min(255, Math.max(0, (c-128)*1.4+128));
+                r = adjust(r); g = adjust(g); b = adjust(b);
+
+                const brightness = 0.299*r + 0.587*g + 0.114*b;
+                const charIndex = Math.floor((brightness/255)*(asciiChars.length-1));
+                const char = asciiChars[charIndex];
+                asciiArtHTML += `<span style="color: rgb(${r},${g},${b});">${char}</span>`;
+            }
+            asciiArtHTML += '\n';
+        }
+
+        asciiOutput.innerHTML = asciiArtHTML;
+        asciiOutput.dataset.lastImage = img.src;
+    }
+
+    uploader.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) { asciiOutput.innerHTML = "❌ Görsel seçimi iptal edildi."; return; }
+        asciiOutput.innerHTML = "⏳ Görsel işleniyor...";
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            const img = new Image();
+            img.onload = () => processImage(img);
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    window.addEventListener('resize', () => {
+        if (asciiOutput.dataset.lastImage) {
+            const img = new Image();
+            img.onload = () => processImage(img);
+            img.src = asciiOutput.dataset.lastImage;
+        }
+    });
+})();
